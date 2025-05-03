@@ -1,0 +1,88 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from google.colab import files
+from io import BytesIO
+
+class KMeans:
+    def _init_(self, k, max_iters=100, tol=1e-4):
+        self.k = k
+        self.max_iters = max_iters
+        self.tol = tol
+
+    def fit(self, X):
+        self.centroids = X[np.random.choice(len(X), self.k, replace=False)]
+        for _ in range(self.max_iters):
+            distances = np.linalg.norm(X[:, None] - self.centroids, axis=2)
+            self.labels = np.argmin(distances, axis=1)
+            new_centroids = np.array([
+                X[self.labels == j].mean(axis=0) if len(X[self.labels == j]) > 0 else self.centroids[j]
+                for j in range(self.k)
+            ])
+            if np.linalg.norm(self.centroids - new_centroids) < self.tol:
+                break
+            self.centroids = new_centroids
+
+    def predict(self, X):
+        distances = np.linalg.norm(X[:, None] - self.centroids, axis=2)
+        return np.argmin(distances, axis=1)
+def load_image_colab():
+    uploaded = files.upload()
+    for filename in uploaded:
+        image = Image.open(BytesIO(uploaded[filename]))
+        return np.array(image)
+def segment_image(image, k):
+    h, w, c = image.shape
+    X = image.reshape((-1, 3)).astype(np.float32)
+
+    kmeans = KMeans(k=k)
+    kmeans.fit(X)
+    labels = kmeans.predict(X)
+
+    return labels.reshape(h, w), kmeans.centroids, h, w
+
+def isolate_number(image, labels, centroids, h, w, num_number_clusters):
+    """
+    Returns an image with only the number area in red and all else in black.
+    Automatically selects the smallest N clusters as the number.
+    """
+    output = np.zeros((h, w, 3), dtype=np.uint8)
+
+    # Count how many pixels belong to each cluster
+    unique, counts = np.unique(labels, return_counts=True)
+    cluster_sizes = dict(zip(unique, counts))
+
+    # Get the N smallest clusters (likely to be the number)
+    sorted_clusters = sorted(cluster_sizes.items(), key=lambda x: x[1])
+    number_clusters = [cluster_id for cluster_id, _ in sorted_clusters[:num_number_clusters]]
+
+    # Paint pixels: red if in number cluster, black otherwise
+    for i in range(h):
+        for j in range(w):
+            if labels[i, j] in number_clusters:
+                output[i, j] = [255, 0, 0]  # Red
+            else:
+                output[i, j] = [0, 0, 0]    # Black
+
+    return output
+
+def extract_red_number_image(k=11):
+    image = load_image_colab()
+    labels, centroids, h, w = segment_image(image, k)
+    output = isolate_number(image, labels, centroids, h, w, num_number_clusters=4)
+
+
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.title("Original Image")
+    plt.axis('off')
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(output)
+    plt.title(f"Extracted Number k = {k}")
+    plt.axis('off')
+    plt.show()
+
+
+extract_red_number_image(k=16)
