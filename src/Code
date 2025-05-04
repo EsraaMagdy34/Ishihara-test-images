@@ -42,10 +42,6 @@ def segment_image(image, k):
     return labels.reshape(h, w), kmeans.centroids, h, w
 
 def isolate_number(image, labels, centroids, h, w, num_number_clusters):
-    """
-    Returns an image with only the number area in red and all else in black.
-    Automatically selects the smallest N clusters as the number.
-    """
     output = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Count how many pixels belong to each cluster
